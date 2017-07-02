@@ -1,0 +1,172 @@
+      SUBROUTINE BULK(UZ,ZU,TZ,ZT,RH,ZQ,TSFC,TOL,UW,WT,WQ,CD,BP,NERR)
+CMNT  BULK ESTIMATION OF FLUXES.  FROM BILL LARGE, NCAR, OCT 84
+CMNT  ESTIMATES:
+CMNT   1. TOL, THE STABILITY PARAMETER Z/L AT Z=10 METERS
+CMNT   2.  UW, THE KINEMATIC MOMENTUM FLUX (M/S)**2
+CMNT   3.  WT, THE KINEMATIC SENSIBLE HEAT FLUX (DEGREES M/S)
+CMNT   4.  WQ, THE KINEMATIC LATENT HEAT (MOISTURE) FLUX (M/S G/M**3)
+CMNT   5.  CD, THE DRAG COEFFICIENT FOR THE GIVEN STABILITY, HEIGHT
+CMNT
+CMNT  FROM THESE INPUTS:
+CMNT   1.  UZ, THE MEAN WIND SPEED AT HEIGHT ZU
+CMNT   2.  TZ, THE MEAN AIR TEMPERATURE (CELSIUS) AT HEIGHT ZT
+CMNT   3.  RH, THE MEAN RELATIVE HUMIDITY (PERCENT) AT HEIGHT ZQ
+CMNT   4.  TSFC, THE SEA SURFACE TEMPERATURE (CELSIUS)
+CMNT   5.  BP, the barometric pressure in millibars
+CMNT  
+CMNT  OPTIONS:
+CMNT   1. IF SET ZQ=0., REL HUM ASSUMED TO BE 75 PERCENT
+CMNT   2. IF SET ZT=0., UW IS FOUND ASSUMING NEUTRAL STABILITY
+CMNT   3. IF SET ZU=0., 10 M STRESS IS RETURNED
+CMNT
+CMNT  ASSUME:
+CMNT   1. A NEUTRAL 10 M DRAG COEF CDN=0.00115 U10<UCH=11M/S
+CMNT                  =0.00049 + 0.000065 U10  U10>UCH=11M/S
+CMNT   2. A NEUTRAL 10 M STANTON NUMBER CTN=0.00115 Z/L<0
+CMNT                                       =0.00075 Z/L>0
+CMNT   3. A NEUTRAL 10 M DALTON NUMBER  CEN=0.00115 ALWAYS
+CMNT   4. VON KARMAN'S CONSTANT, VONK=0.040
+CMNT   5. THE SMALL WT REGRESSION, WTR BELOW IF BIG=FALSE
+CMNT      WITH (A=.0008 IF Z/L>0, A=.0010 IF Z/L<0)
+CMNT
+C**********************************************************
+C	Modified November 6, 1990	M. Park Samelson
+C	
+C	Replace function QSAT for computing saturation
+C	humidity with Buck formula (1981) for computing
+C	saturation vapor pressure.  Use specific humidity
+C	formula to convert saturation vapor pressure to
+C	saturation humidity.  Multiply result by 1000 to 
+C	convert specific humidity from KG/KG to G/KG.
+C	REQUIRES BAROMETRIC PRESSURE TO BE PASSED IN !!!
+C
+C	Modified December 16, 1992	M. Park Samelson
+C	
+C	Routine returns error parameter (NERR) if iterations
+C	fail to converge, rather than writing to output, and
+C	exiting from subroutine.  Allows this routine to be
+C	called from C routines, since we don't want to handle
+C	FORTRAN I/O (all I/O should be handled in main calling
+C	routine anyway).
+C**********************************************************
+C
+C********Start program*************************************
+
+      LOGICAL BIG
+      WTR(A,U,DTH)=0.002+A*U*DTH
+CMNT
+CMNT
+      DATA CDA,CTS,CTU,CEA,UCH/0.00115,0.00075,0.00115,0.00115,10./
+      DATA RHDEFLT,VONK/75.,0.40/
+C
+C	added MPS - see above note.  return error value for subroutine
+      nerr = 0
+CMNT                         ARE TEMPS RELIABLE??
+      IF (ZT .GT. 0.2) GO TO 1
+      TOL=0.0
+      GO TO 3
+CMNT  YES, CALCULATE A BULK STABILITY PARAMETER AT 10 METERS FROM
+CMNT    DELTH,SURFACE - AIR POTENTIAL TEMPERATURE DIFFERENCE
+CMNT    QSFC, SURFACE ABSOLUTE HUMIDITY
+CMNT    TO, LOCAL MEAN VIRTUAL TEMERATURE
+1     DELTH=TSFC-TZ-0.01*ZT
+CMNT  THIS IS THE SEA MINUS AIR POT. TEMP. DIFF
+      IF (ZQ .LE. 0.0) RH=RHDEFLT
+      QZ=RH*QSAT(TZ,BP)*.01
+
+C	Correct for salt water at 35ppt
+      SALT = 0.9815
+      DELQ=SALT*QSAT(TSFC,BP)-QZ
+      TKELV=273.16 + TZ
+      F1=0.00000172
+      T0=TKELV+QZ*F1*TKELV**2
+CMNT  
+CMNT  IS /WT/ LARGE ENOUGH TO USE TRANSFER COEFFICIENTS?
+      UDT=UZ*DELTH
+      IF ((UDT .LT. 10.) .AND. (UDT. GT. -15.)) GO TO 2
+CMNT  YES
+      BIG=.TRUE.
+      F2=1.00
+      IF (DELTH .LT. 0.0) F2=0.70
+      TOL=0.0-1000.*F2/T0/UZ**2*(DELTH+F1/F2*DELQ*T0**2)
+      GO TO 3
+CMNT  
+CMNT  NO,     DEAL WITH SMALL SENSIBLE HEAT FLUXES
+2     BIG=.FALSE.
+      A=0.0010
+      IF (DELTH .LT. 0.0) A=0.0008
+      WT=WTR(A,UZ,DELTH)
+      WQ=CEA*UZ*DELQ
+      U3=(SQRT(CDA)*UZ)**3
+      TOL=0.0-39./U3/T0*(WT+F1*WQ*T0**2)
+CMNT
+CMNT     RETURN WITH ONLY TOL IF ZU NOT GREATER THAN 0.2
+3     IF (ZU .LE. 0.2) RETURN
+      ZUOL=TOL*ZU/10.0
+      ZTOL=TOL*ZT/10.0
+      ZQOL=TOL*ZQ/10.0
+CMNT     EVALUATE THE STABILITY FUNCTIONS IN FZOL
+      TTOL = TOL
+      CALL FZOL(TTOL,P10,PG10,S10,SG10)
+      TOL = TTOL
+      CALL FZOL(ZUOL,PHIM,PHI,PSIM,PSI)
+      CALL FZOL(ZTOL,PHI,PHIT,PSIMT,PSIT)
+      CALL FZOL(ZQOL,PHI,PHIQ,PSIMQ,PSIQ)
+CMNT
+CMNT     SOLVE FOR U10 AND CDN ITERATIVELY
+      RK=(ALOG(ZU/10.0)-PSIM+S10)/VONK
+      ITER=1
+      UP=UZ/(1.0+SQRT(CDA)*RK)
+22    CP=CDA
+      IF (UP .GT. UCH) CP=(0.49+0.065*UP)/1000.
+      U10=UZ/(1.0+SQRT(CP)*RK)
+      DIFF=(UP-U10)/UP
+      UP=U10
+      IF (DIFF .LE. 0.01) GO TO 4
+      ITER=ITER+1
+      IF (ITER .LE. 5) GO TO 22
+C**********************************************************
+C	commented out following 5 lines, added return 
+C	MPS - see explanation at beginning of program
+C      WRITE(6,66)ITER,U10,DIFF,CP
+C 66    FORMAT('-',5X,'TOO BAD, FAILED TO CONVERGE IN 5 ITERATIONS',I6,
+C     13F16.4)
+C      STOP
+	nerr = iter
+	return
+C**********************************************************
+CMNT
+CMNT      SOLVED FOR U10, NOW FIND CDN AND CD
+CMNT      THEN GET UW FROM BULK FORMULA
+4     CDN=CDA
+      IF (U10 .GT. UCH) CDN=(0.49+0.065*U10)/1000.
+      SQCD=SQRT(CDN)
+      RCD=1.0+SQCD/VONK*(ALOG(ZU/10.0)-PSIM)
+      CD=CDN/RCD**2
+      UW=0.0-CD*UZ**2
+CMNT
+CMNT  SENSIBLE HEAT FLUX IF ZT GREATER THAN 0.02
+      IF (ZT .LE. 0.02) GO TO 5
+      CTN=CTU
+      IF (DELTH .LT. 0.0) CTN=CTS
+      RCDT=1.0+SQCD/VONK*(ALOG(ZT/10.0)-PSIMT)
+      CT=CTN/RCDT/(1.0+CTN/VONK/SQCD*(ALOG(ZT/10.)-PSIT))
+      WT=CT*UZ*DELTH
+      IF (BIG) GO TO 5
+CMNT       CALCULATE SMALL SENSIBLE HEAT FLUX
+      RKT=(ALOG(ZT/10.0)-PSIT+SG10)/VONK
+      DTH10=DELTH-CT/SQRT(CD)*RKT*(DELTH)
+      WT=WTR(A,U10,DTH10)
+CMNT
+CMNT      LATENT HEAT (MOISTURE) FLUX IF ZQ SET > 0.02
+5     IF (ZQ .GT. 0.02) GO TO 6
+CMNT  MOD. ORIGINAL RETURNED IF ZQ .LE. 0.02 WITHOUT
+CMNT  CALCULATING A NEW WQ
+      WQ=CEA*UZ*DELQ
+      RETURN
+6     CEN=CEA
+      RCDQ=1.0+SQCD/VONK*(ALOG(ZQ/10.0)-PSIMQ)
+      CE=CEN/RCDQ/(1.0+CEN/VONK/SQCD*(ALOG(ZQ/10.)-PSIQ))
+      WQ=CE*UZ*DELQ
+      RETURN
+      END
