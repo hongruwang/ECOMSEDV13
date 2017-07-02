@@ -362,4 +362,11 @@ C
       CHARACTER*7 BCTYPE
       COMMON /OBCBLK/BCTYPE
 
+C---------------WYGÌí¼Ó----------------
+
+
+      CHARACTER *100 USERPATH
+      COMMON /WG1/USERPATH 
+
+
 C    END OF COMDECK

@@ -54,6 +54,12 @@ C                         I=2,IMM1                                         |
 C                                                                          |
 C__________________________________________________________________________|
 C
+
+CW-------------------------------2017-07-02---------------------------------
+CW-----------------------------王永桂测试修改-------------------------------
+
+
+
       INCLUDE 'comdeck'
       DIMENSION ADVUA(IM,JM),ADVVA(IM,JM),ADVUU(IM,JM),ADVVV(IM,JM)
       DIMENSION DRHOX(IM,JM,KB),DRHOY(IM,JM,KB),TRNU(IM,JM),TRNV(IM,JM)
@@ -135,15 +141,20 @@ C
 C********************************************************************
 C
 C
-      OPEN (IURUN,FILE='run_data')
-      OPEN (IUPRT,FILE='gcmprt')
-      OPEN (IUT90,FILE='gcm_temp90')
-      OPEN (IUT91,FILE='gcm_temp91')
-      OPEN (IUT92,FILE='gcm_temp92')
-      OPEN (IUT93,FILE='gcm_temp93')
+
+      CALL GETARG(1,USERPATH)   !!!传入用户路径
+
+
+
+      OPEN (IURUN,FILE=trim(USERPATH)//'\INC\run_data')
+      OPEN (IUPRT,FILE=trim(USERPATH)//'\PRT_RES\gcmprt')
+      OPEN (IUT90,FILE=trim(USERPATH)//'\TEMP\gcm_temp90')
+      OPEN (IUT91,FILE=trim(USERPATH)//'\TEMP\gcm_temp91')
+      OPEN (IUT92,FILE=trim(USERPATH)//'\TEMP\gcm_temp92')
+      OPEN (IUT93,FILE=trim(USERPATH)//'\TEMP\gcm_temp93')
 c      OPEN (IUT193,FILE='gcm_temp193')
-      OPEN (IUT94,FILE='gcm_temp94')
-      OPEN (IUT96,FILE='gcm_temp96')
+      OPEN (IUT94,FILE=trim(USERPATH)//'\TEMP\gcm_temp94')
+      OPEN (IUT96,FILE=trim(USERPATH)//'\TEMP\gcm_temp96')
 C
       WRITE(IUPRT,7000)
       READ(IURUN,11)  (COM(I),I=1,80)
